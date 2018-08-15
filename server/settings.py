@@ -9,7 +9,7 @@ DEFAULT_HOST = 'localhost'
 DEFAULT_PORT = '5000'
 
 # DB connection and other settings are stored in environment variables
-DEBUG = bool(os.environ.get('SOCIALCAR_DEBUG', False))
+DEBUG = bool(os.environ.get('METALBANDS_DEBUG', True))
 MONGO_HOST = os.environ.get('MONGO_HOST', 'localhost')
 MONGO_PORT = int(os.environ.get('MONGO_PORT', 27017))
 MONGO_USERNAME = os.environ.get('MONGO_USERNAME', '')
@@ -86,7 +86,7 @@ QUERY_MAX_RESULTS = 'limit'
 
 # List of fields on which filtering is allowed. Can be set to [] (no filters
 # allowed) or ['*'] (filters allowed on every field).
-ALLOWED_FILTERS = [ ]
+# ALLOWED_FILTERS = [ ]
 
 # Serving media files at a dedicated endpoint
 # http://python-eve.org/features.html#serving-media-files-at-a-dedicated-endpoint
@@ -114,6 +114,7 @@ bands = {
             # 'regex': r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$',
             'required': True,
         },
+        # >>>>> not needed: included in 'info' below
         'country': {
             'type': 'string',
             'required': True,
@@ -124,8 +125,42 @@ bands = {
         },
         'status': {
             'type': 'string',
-            # 'allowed': [ 'Active', 'Inactive',  ],
+            'allowed': [ 'Active', 'Changed name', 'On hold', 'Split-up', 'Unknown' ],
             'required': True,
+        },
+        # <<<<< not needed: included in 'info' below
+        'info': {
+            'type': 'dict',
+            'schema': {
+                "country of origin:": {
+                    'type': 'string',
+                },
+                "location:":  {
+                    'type': 'string',
+                },
+                "status:":  {
+                    'type': 'string',
+                    'allowed': [ 'Active', 'Changed name', 'On hold', 'Split-up', 'Unknown' ],
+                },
+                "formed in:":  {
+                    'type': 'string',  # not integer, can be "N/A"
+                },
+                "genre:":  {
+                    'type': 'string',
+                },
+                "lyrical themes:":  {
+                    'type': 'string',
+                },
+                "current label:":  {
+                    'type': 'string',
+                },
+                "last label:":  {
+                    'type': 'string',
+                },
+                "years active:":  {
+                    'type': 'string',
+                },
+            },
         },
         'albums': {
             'type': 'list',
@@ -156,38 +191,6 @@ bands = {
                             'type': 'list',
                         },
                     },
-                },
-            },
-        },
-        'info': {
-            'type': 'dict',
-            'schema': {
-                "country of origin:": {
-                    'type': 'string',
-                },
-                "location:":  {
-                    'type': 'string',
-                },
-                "status:":  {
-                    'type': 'string',
-                },
-                "formed in:":  {
-                    'type': 'integer',
-                },
-                "genre:":  {
-                    'type': 'string',
-                },
-                "lyrical themes:":  {
-                    'type': 'string',
-                },
-                "current label:":  {
-                    'type': 'string',
-                },
-                "last label:":  {
-                    'type': 'string',
-                },
-                "years active:":  {
-                    'type': 'string',
                 },
             },
         },

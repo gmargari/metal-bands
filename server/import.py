@@ -76,6 +76,47 @@ def create_arg_parser():
     return parser
 
 #===============================================================================
+# preprocess_band_data ()
+#===============================================================================
+def preprocess_band_data(band):
+    albums_new = []
+    for album in band['albums']:
+        # An album will most probably have one disk, but may have many disks
+        # Transform
+        # songs: [
+        #    "Disk A",
+        #     [ "1.", "Hate", "2:37" ],
+        #     [ "1.", "Fear", "2:37" ],
+        #    "Disk B",
+        #     [ "1.", "Hate 2", "2:37" ],
+        #     [ "1.", "Fear 2", "2:37" ],
+        # ]
+        # to
+        # songs: [
+        #     [
+        #         [ "1.", "Hate", "2:37" ],
+        #         [ "1.", "Fear", "2:37" ],
+        #     ],
+        #     [
+        #         [ "1.", "Hate 2", "2:37" ],
+        #         [ "1.", "Fear 2", "2:37" ],
+        #     ]
+        # ]
+        disks = []
+        disk = []
+        for song in album['songs']:
+            if isinstance(song, list):
+                disk.append(song)
+            else:
+                # New disk etc. Start new subalbum
+                assert isinstance(song, str)
+                disks.append(disk)
+                disk = []
+        assert disk
+        disks.append(disk)
+        album['songs'] = disks
+
+#===============================================================================
 # main ()
 #===============================================================================
 def main():
@@ -93,34 +134,34 @@ def main():
     # time.tzset()
 
     for infile in infiles:
-        try:
-            f = open(infile)
-        except:
-            error("Could not open file '%s'." % (infile))
+        with open(infile) as f:
 
-        collection = 'bands'
-        data = json.loads(f.read())
+            data_list = json.loads(f.read())
 
-        # Drop collection, if required
-        if (drop_collection):
-            r = perform_delete(entry_point, collection)
-            print("Dropped collection '%s', status code: %s" % (collection, r.status_code))
-            if r.status_code != 204:
-                error(json.dumps(r.json(), indent=2))
+            collection = 'bands'
 
-        # Post data to collection
-        r = perform_post(entry_point, collection, data)
-        if r.status_code != 201:
-            if '_items' in r.json():
-                errors = r.json()['_items']
-            else:
-                errors = [ r.json() ]
-            for idx, val in enumerate(errors):
-                if (val["_status"] != "OK"):
-                    print("Error: could not insert\n%s" % (json.dumps(data, indent=4)))
-                    print("because\n%s\n" % (json.dumps(val['_issues'], indent=4)))
-            error(r.json()['_error']['message'])
-        f.close()
+            # Drop collection, if required
+            if (drop_collection):
+                r = perform_delete(entry_point, collection)
+                print("Dropped collection '%s', status code: %s" % (collection, r.status_code))
+                if r.status_code != 204:
+                    error(json.dumps(r.json(), indent=2))
 
+            for data in data_list:
+                print(data['name'])
+                # Post data to collection
+                preprocess_band_data(data)
+                r = perform_post(entry_point, collection, data)
+                if r.status_code != 201:
+                    if '_items' in r.json():
+                        errors = r.json()['_items']
+                    else:
+                        errors = [ r.json() ]
+                    for idx, val in enumerate(errors):
+                        if (val["_status"] != "OK"):
+                            print("Error: could not insert\n%s" % (json.dumps(data, indent=4)))
+                            print("because\n%s\n" % (json.dumps(val['_issues'], indent=4)))
+                    error(r.json()['_error']['message'])
+                # break
 if __name__ == "__main__":
     main()

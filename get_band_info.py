@@ -142,11 +142,6 @@ def download_bands_info(filename):
         next(f)  # skip header line
         csvreader = csv.reader(f, delimiter=',', skipinitialspace=True)
         for line in csvreader:
-            num = int(line[0])
-            print("%d: %s" % (num, HTML(html=line[1]).text))
-            if num < 795:
-                continue
-
             band_name = HTML(html=line[1]).text
             band_url = HTML(html=line[1]).absolute_links.pop()
             band_id = band_url[band_url.rfind('/')+1:]
