@@ -132,57 +132,44 @@ def get_band_albums(band_id):
     return albums
 
 #===============================================================================
-# band_filename ()
+# band ()
 #===============================================================================
-def band_filename(band):
-    return '%s/%s.%s.json' % (OUTPUT_DIR, band['name'], band['id'])
+class Band:
+    def __init__(self):
+        self.info = {}
 
-#===============================================================================
-# band_save_on_disk ()
-#===============================================================================
-def band_save_on_disk(band):
-    filename = band_filename(band)
-    save_dict_to_file(band, filename)
+    def parse_basic_info(self, line):
+        # TODO: country, genre, status not needed,
+        # they are included in info['info']
+        info = self.info
+        info['name'] = HTML(html=line[1]).text
+        info['url'] = HTML(html=line[1]).absolute_links.pop()
+        info['id'] = info['url'][info['url'].rfind('/')+1:]
+        info['country'] = line[2]
+        info['genre'] = line[3]
+        info['status'] = HTML(html=line[4]).text
 
-#===============================================================================
-# band_already_saved_on_disk ()
-#===============================================================================
-def band_already_saved_on_disk(band):
-    filename = band_filename(band)
-    return os.path.isfile(filename)
+    def extend_info(self):
+        info = self.info
+        info['info'] = get_band_info(info['url'])
+        info['albums'] = get_band_albums(info['id'])
+        info['similar_bands'] = get_band_similar_bands(info['id'])
 
-#===============================================================================
-# parse_band_basic_info ()
-#===============================================================================
-def parse_band_basic_info(line):
-    band_name = HTML(html=line[1]).text
-    band_url = HTML(html=line[1]).absolute_links.pop()
-    band_id = band_url[band_url.rfind('/')+1:]
-    band_country = line[2]
-    band_genre = line[3]
-    band_status = HTML(html=line[4]).text
-    band = {
-        'name': band_name,
-        'url': band_url,
-        'id': band_id,
-        # >>>>> not needed: included in 'info' below
-        'country': band_country,
-        'genre': band_genre,
-        'status': band_status,
-        # <<<<< not needed: included in 'info' below
-    }
+    def save_on_disk(self):
+        info = self.info
+        filename = self._filename()
+        save_dict_to_file(info, filename)
 
-    return band
+    def already_saved_on_disk(self):
+        filename = self._filename()
+        return os.path.isfile(filename)
 
-#===============================================================================
-# extend_band_info ()
-#===============================================================================
-def extend_band_info(band):
-    band['info'] = get_band_info(band['url'])
-    band['albums'] = get_band_albums(band['id'])
-    band['similar_bands'] = get_band_similar_bands(band['id'])
+    def _filename(self):
+        info = self.info
+        return '%s/%s.%s.json' % (OUTPUT_DIR, info['name'], info['id'])
 
-    return band
+    def name(self):
+        return self.info['name']
 
 #===============================================================================
 # download_bands ()
@@ -192,15 +179,16 @@ def download_bands(filename):
         next(f)  # skip header line
         csvreader = csv.reader(f, delimiter=',', skipinitialspace=True)
         for line in csvreader:
-            band = parse_band_basic_info(line)
+            band = Band()
+            band.parse_basic_info(line)
 
-            if band_already_saved_on_disk(band):
-                print('%s: skipping (already downloaded)' % (band['name']))
+            if band.already_saved_on_disk():
+                print('%s: skipping (already downloaded)' % band.name())
                 continue
 
-            print('%s' % (band['name']))
-            band = extend_band_info(band)
-            band_save_on_disk(band)
+            print('%s' % band.name())
+            band.extend_info()
+            band.save_on_disk()
 
 #==============================================================================
 # main ()
