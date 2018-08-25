@@ -8,7 +8,7 @@ import os
 import csv
 import time
 
-outdir = 'data'
+OUTPUT_DIR = 'data'
 session = HTMLSession()
 
 #===============================================================================
@@ -35,14 +35,11 @@ def get_valid_filename(s):
     return re.sub(r'(?u)[^-\w.]', '', s)
 
 #===============================================================================
-# save_to_file ()
+# save_dict_to_file ()
 #===============================================================================
-def save_to_file(bands, filename):
-    filename = "%s/%s" % (outdir, get_valid_filename(filename))
-    if not os.path.exists(outdir):
-        os.makedirs(outdir)
+def save_dict_to_file(d, filename):
     with codecs.open(filename, 'w', 'utf-8') as f:
-        print(json.dumps(bands, indent=2), file=f)
+        print(json.dumps(d, indent=2), file=f)
 
 #===============================================================================
 # get_album_songs ()
@@ -135,34 +132,75 @@ def get_band_albums(band_id):
     return albums
 
 #===============================================================================
-# download_bands_info ()
+# band_filename ()
 #===============================================================================
-def download_bands_info(filename):
+def band_filename(band):
+    return '%s/%s.%s.json' % (OUTPUT_DIR, band['name'], band['id'])
+
+#===============================================================================
+# band_save_on_disk ()
+#===============================================================================
+def band_save_on_disk(band):
+    filename = band_filename(band)
+    save_dict_to_file(band, filename)
+
+#===============================================================================
+# band_already_saved_on_disk ()
+#===============================================================================
+def band_already_saved_on_disk(band):
+    filename = band_filename(band)
+    return os.path.isfile(filename)
+
+#===============================================================================
+# parse_band_basic_info ()
+#===============================================================================
+def parse_band_basic_info(line):
+    band_name = HTML(html=line[1]).text
+    band_url = HTML(html=line[1]).absolute_links.pop()
+    band_id = band_url[band_url.rfind('/')+1:]
+    band_country = line[2]
+    band_genre = line[3]
+    band_status = HTML(html=line[4]).text
+    band = {
+        'name': band_name,
+        'url': band_url,
+        'id': band_id,
+        # >>>>> not needed: included in 'info' below
+        'country': band_country,
+        'genre': band_genre,
+        'status': band_status,
+        # <<<<< not needed: included in 'info' below
+    }
+
+    return band
+
+#===============================================================================
+# extend_band_info ()
+#===============================================================================
+def extend_band_info(band):
+    band['info'] = get_band_info(band['url'])
+    band['albums'] = get_band_albums(band['id'])
+    band['similar_bands'] = get_band_similar_bands(band['id'])
+
+    return band
+
+#===============================================================================
+# download_bands ()
+#===============================================================================
+def download_bands(filename):
     with codecs.open(filename, 'r', 'utf-8') as f:
         next(f)  # skip header line
         csvreader = csv.reader(f, delimiter=',', skipinitialspace=True)
         for line in csvreader:
-            band_name = HTML(html=line[1]).text
-            band_url = HTML(html=line[1]).absolute_links.pop()
-            band_id = band_url[band_url.rfind('/')+1:]
-            band_country = line[2]
-            band_genre = line[3]
-            band_status = HTML(html=line[4]).text
-            band = {
-                'name': band_name,
-                'url': band_url,
-                'id': band_id,
-                # >>>>> not needed: included in 'info' below
-                'country': band_country,
-                'genre': band_genre,
-                'status': band_status,
-                # <<<<< not needed: included in 'info' below
-                'info': get_band_info(band_url),
-                'albums': get_band_albums(band_id),
-                'similar_bands': get_band_similar_bands(band_id),
-            }
+            band = parse_band_basic_info(line)
 
-            save_to_file(band, '%s.%s.json' % (band_name, band_id))
+            if band_already_saved_on_disk(band):
+                print('%s: skipping (already downloaded)' % (band['name']))
+                continue
+
+            print('%s' % (band['name']))
+            band = extend_band_info(band)
+            band_save_on_disk(band)
 
 #==============================================================================
 # main ()
@@ -172,8 +210,11 @@ def main():
         print('Syntax: %s <MA-band-names_XXXX-XXX-XX.csv>' % sys.argv[0])
         sys.exit(1)
 
+    if not os.path.exists(OUTPUT_DIR):
+        os.makedirs(OUTPUT_DIR)
+
     infile = sys.argv[1]
-    download_bands_info(infile)
+    download_bands(infile)
 
 if __name__ == '__main__':
     main()
