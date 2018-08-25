@@ -1,6 +1,5 @@
 from __future__ import print_function
-from requests_html import HTMLSession
-from requests_html import HTML
+from requests_html import HTMLSession, HTML
 import codecs
 import json
 import sys
@@ -10,19 +9,18 @@ import csv
 import time
 
 OUTPUT_DIR = 'data'
-session = HTMLSession()
+CROWL_DELAY_SEC = 3  # https://www.metal-archives.com/robots.txt
 
 #===============================================================================
 # throttle ()
 #===============================================================================
 def throttle():
-    sleep_time = 3  # based on their robots.txt
-    time.sleep(sleep_time)
+    time.sleep(CROWL_DELAY_SEC)
 
 #===============================================================================
 # get_html ()
 #===============================================================================
-def get_html(url):
+def get_html(session, url):
     print('\t\t\t\t%s' % (url))
     throttle()
     return session.get(url).html
@@ -45,10 +43,10 @@ def save_dict_to_file(d, filename):
 #===============================================================================
 # get_album_songs ()
 #===============================================================================
-def get_album_songs(album_url):
+def get_album_songs(album_url, session):
     throttle()
 
-    html = get_html(album_url)
+    html = get_html(session, album_url)
     songs = []
     for row in html.find('table.table_lyrics')[0].find('tr')[0:]:
         cells = row.find('td')
@@ -70,9 +68,9 @@ def get_album_songs(album_url):
 #===============================================================================
 # get_band_similar_bands ()
 #===============================================================================
-def get_band_similar_bands(band_id):
+def get_band_similar_bands(band_id, session):
     url = 'https://www.metal-archives.com/band/ajax-recommendations/id/%s' % (band_id)
-    html = get_html(url)
+    html = get_html(session, url)
     bands = []
     for row in html.find('tr')[1:]:
         cells = row.find('td')
@@ -96,8 +94,8 @@ def get_band_similar_bands(band_id):
 #===============================================================================
 # get_band_info ()
 #===============================================================================
-def get_band_info(band_url):
-    html = get_html(band_url)
+def get_band_info(band_url, session):
+    html = get_html(session, band_url)
     info = html.find('#band_stats')[0]
     dt = [ x.text.lower().rstrip(':') for x in info.find('dt') ]
     dd = [ x.text for x in info.find('dd') ]
@@ -106,10 +104,10 @@ def get_band_info(band_url):
 #===============================================================================
 # get_band_albums ()
 #===============================================================================
-def get_band_albums(band_id):
+def get_band_albums(band_id, session):
     album_type = 'all'  # 'all': all releases, 'main': full-length albums
     url = 'https://www.metal-archives.com/band/discography/id/%s/tab/%s' % (band_id, album_type)
-    html = get_html(url)
+    html = get_html(session, url)
     albums = []
     for row in html.find('tr')[1:]:
         cells = row.find('td')
@@ -121,7 +119,7 @@ def get_band_albums(band_id):
         # album_id = album_url[album_url.rfind('/')+1:]
         album_type = cells[1].text
         album_year = cells[2].text
-        album_songs = get_album_songs(album_url)
+        album_songs = get_album_songs(album_url, session)
         album = {
             'name': album_name,
             'url': album_url,
@@ -150,11 +148,11 @@ class Band:
         info['genre'] = line[3]
         info['status'] = HTML(html=line[4]).text
 
-    def extend_info(self):
+    def extend_info(self, session):
         info = self.info
-        info['info'] = get_band_info(info['url'])
-        info['albums'] = get_band_albums(info['id'])
-        info['similar_bands'] = get_band_similar_bands(info['id'])
+        info['info'] = get_band_info(info['url'], session)
+        info['albums'] = get_band_albums(info['id'], session)
+        info['similar_bands'] = get_band_similar_bands(info['id'], session)
 
     def save_on_disk(self):
         info = self.info
@@ -178,7 +176,9 @@ class Band:
 # download_bands ()
 #===============================================================================
 def download_bands(filename):
-    with codecs.open(filename, 'r', 'utf-8') as f:
+    with codecs.open(filename, 'r', 'utf-8') as f, \
+         codecs.open('errors.txt', 'a', 'utf-8') as error_f, \
+         HTMLSession() as session:
         next(f)  # skip header line
         csvreader = csv.reader(f, delimiter=',', skipinitialspace=True)
         for line in csvreader:
@@ -189,9 +189,17 @@ def download_bands(filename):
                 print('%s: skipping (already downloaded)' % band.name())
                 continue
 
-            print('%s' % band.name())
-            band.extend_info()
-            band.save_on_disk()
+            try:
+                print('%s' % band.name())
+                band.extend_info(session)
+                band.save_on_disk()
+            except KeyboardInterrupt:
+                print('Caught Ctrl+C. Exit...')
+                sys.exit(0)
+            except:
+                print('Error parsing band "%s"' % band.name())
+                print('%s: %s' % (band.name(), line), file=error_f)
+                pass
 
 #==============================================================================
 # main ()
