@@ -1,3 +1,4 @@
+from __future__ import print_function
 from requests_html import HTMLSession
 from requests_html import HTML
 import codecs
