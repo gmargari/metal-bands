@@ -166,7 +166,9 @@ class Band:
 
     def _filename(self):
         info = self.info
-        return '%s/%s.%s.json' % (OUTPUT_DIR, info['name'], info['id'])
+        filename = '%s.%s.json' % (info['name'], info['id'])
+        filename = get_valid_filename(filename)
+        return '%s/%s' % (OUTPUT_DIR, filename)
 
     def name(self):
         return self.info['name']
